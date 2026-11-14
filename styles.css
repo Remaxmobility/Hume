@@ -333,3 +333,14 @@ table.data th { color: var(--muted); font-weight: 500; }
 .ztable td { padding: 7px 8px; border-bottom: 1px solid var(--glass-border-soft); }
 .ztable td:last-child { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .zdot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+
+/* overnight mode */
+.overnight-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+#ovAnalysis { margin-top: 6px; }
+.sb-details { margin-top: 16px; border-top: 1px solid var(--glass-border-soft); padding-top: 12px; }
+.sb-details summary { cursor: pointer; font-weight: 650; font-size: 14px; }
+.sb-form { display: grid; gap: 8px; margin-top: 10px; }
+.sb { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; line-height: 1.4; color: var(--text); }
+.sb input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex: 0 0 auto; }
+.sb-out { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.sb-score { font-size: 18px; font-weight: 800; }
