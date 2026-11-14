@@ -10,9 +10,12 @@ using [Web Bluetooth](https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_A
 ## What it does
 
 - **Connect** to the band over BLE and read live device state
-- **Device panel** — battery, name, MAC, firmware + build date, step goal, on-device clock
-- **Live measurement** (`0x28`, ~2 Hz) — heart rate, SpO₂, HRV, stress, blood pressure and temperature, with a live heart-rate chart
-- **History download** — steps, heart rate, HRV, SpO₂, temperature, sleep (hypnogram) and daily totals, with charts, summaries and **CSV export**
+- **Device panel** — battery (header), name, MAC, firmware + build date, step goal, on-device clock
+- **Live measurement** (`0x28`, ~2 Hz) — heart rate, SpO₂, HRV, stress, blood pressure and temperature, with a live chart and a metric selector (incl. a multi-line **overlay**)
+- **History download** — steps, heart rate, HRV, SpO₂, temperature, sleep and daily totals, with charts, summaries and **CSV export**
+- **Local history store** — each sync is saved to the browser (IndexedDB), so history **accumulates past the band's ~4–5 day rolling window**; nothing leaves your device
+- **Sleep report** — per-night hypnogram with a night picker, total sleep, stage %, efficiency, bed/wake times, and an asleep-per-night trend
+- **Interactive charts** — hover tooltips with exact values and timestamps
 - **Auto-logging intervals** — read and change how often the band records each metric to its own memory
 - **BLE log** — raw TX/RX hex console for debugging
 
@@ -69,7 +72,8 @@ styles.css        dark theme
 js/protocol.js    framing, opcodes, encoders/decoders (BCD, checksum, parsers)
 js/ble.js         Web Bluetooth connection manager + request/response helper
 js/history.js     history download state machine + record parsers + CSV
-js/charts.js      zero-dependency canvas charts (line + sleep hypnogram)
+js/store.js       local history persistence (IndexedDB), deduped and merged
+js/charts.js      zero-dependency canvas charts (interactive line, bars, hypnogram)
 js/app.js         UI controller wiring it together
 ```
 
