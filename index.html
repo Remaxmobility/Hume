@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="bg-orbs" aria-hidden="true"></div>
+
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true">
@@ -21,6 +23,10 @@
       </div>
     </div>
     <div class="conn">
+      <span id="hdrBattery" class="batt" hidden>
+        <span class="batt-ico"><i id="hdrBatteryFill"></i></span>
+        <span id="hdrBatteryText">—</span>
+      </span>
       <span id="statusDot" class="dot" data-state="off"></span>
       <span id="statusText" class="status-text">Disconnected</span>
       <button id="connectBtn" class="btn btn-primary">Connect</button>
@@ -32,26 +38,8 @@
     <div id="unsupported" class="banner banner-warn" hidden>
       <strong>Web Bluetooth isn't available here.</strong>
       Use Chrome or Edge on desktop, or Chrome on Android. iOS/Safari don't support Web Bluetooth.
-      The page must be served over HTTPS (GitHub Pages works).
+      The page must be served over HTTPS.
     </div>
-
-    <!-- Device panel -->
-    <section class="card" id="deviceCard">
-      <div class="card-head">
-        <h2>Device</h2>
-        <button id="refreshDevice" class="btn btn-sm" disabled>Refresh</button>
-      </div>
-      <div class="grid stat-grid">
-        <div class="stat"><span class="stat-label">Battery</span><span class="stat-value" id="battery">—</span></div>
-        <div class="stat"><span class="stat-label">Name</span><span class="stat-value" id="name">—</span></div>
-        <div class="stat"><span class="stat-label">MAC</span><span class="stat-value mono" id="mac">—</span></div>
-        <div class="stat"><span class="stat-label">Firmware</span><span class="stat-value" id="firmware">—</span></div>
-        <div class="stat"><span class="stat-label">Build</span><span class="stat-value" id="build">—</span></div>
-        <div class="stat"><span class="stat-label">Step goal</span><span class="stat-value" id="stepGoal">—</span></div>
-        <div class="stat"><span class="stat-label">Device time</span><span class="stat-value" id="deviceTime">—</span></div>
-        <div class="stat"><span class="stat-label">Base HR</span><span class="stat-value" id="baseHr">—</span></div>
-      </div>
-    </section>
 
     <!-- Live measurement -->
     <section class="card" id="liveCard">
@@ -70,8 +58,11 @@
         <div class="metric"><span class="metric-label">Blood pressure</span><span class="metric-value" id="mBp">—</span><span class="metric-unit">mmHg</span></div>
         <div class="metric"><span class="metric-label">Temperature</span><span class="metric-value" id="mTemp">—</span><span class="metric-unit">°C</span></div>
       </div>
-      <canvas id="liveChart" class="chart" aria-label="Live heart rate chart" hidden></canvas>
-      <p class="hint">Type 2 (heart) streams at ~2 Hz. SpO₂/HRV/temp warm up over ~30 s before reporting a full panel.</p>
+      <div class="chart-wrap">
+        <div class="seg" id="liveChartControls" role="tablist" aria-label="Choose metric to graph"></div>
+        <canvas id="liveChart" class="chart" aria-label="Live measurement chart"></canvas>
+      </div>
+      <p class="hint">Pick a metric above to graph it live. Type 2 (heart) streams at ~2 Hz; SpO₂/HRV/temp warm up over ~30 s before reporting a full panel.</p>
     </section>
 
     <!-- History -->
@@ -97,6 +88,23 @@
       </div>
       <p class="hint">How often the band records each metric to its own history, with nothing connected. Lower = finer resolution, more battery use.</p>
       <div class="auto-grid" id="autoGrid"></div>
+    </section>
+
+    <!-- Device details (static, non-measured) -->
+    <section class="card" id="deviceCard">
+      <div class="card-head">
+        <h2>Device details</h2>
+        <button id="refreshDevice" class="btn btn-sm" disabled>Refresh</button>
+      </div>
+      <div class="grid stat-grid">
+        <div class="stat"><span class="stat-label">Name</span><span class="stat-value" id="name">—</span></div>
+        <div class="stat"><span class="stat-label">MAC</span><span class="stat-value mono" id="mac">—</span></div>
+        <div class="stat"><span class="stat-label">Firmware</span><span class="stat-value" id="firmware">—</span></div>
+        <div class="stat"><span class="stat-label">Build date</span><span class="stat-value" id="build">—</span></div>
+        <div class="stat"><span class="stat-label">Step goal</span><span class="stat-value" id="stepGoal">—</span></div>
+        <div class="stat"><span class="stat-label">Device time</span><span class="stat-value" id="deviceTime">—</span></div>
+        <div class="stat"><span class="stat-label">Base HR</span><span class="stat-value" id="baseHr">—</span></div>
+      </div>
     </section>
 
     <!-- Console -->

@@ -39,6 +39,17 @@ function setConnectedUI(on) {
   for (const id of ['refreshDevice', 'measureBtn', 'downloadAll', 'readAuto']) $(id).disabled = !on;
   document.querySelectorAll('.hist-types .btn, .auto-item button').forEach((b) => { b.disabled = !on; });
   $('sinceDate').disabled = !on || !$('sinceToggle').checked;
+  if (!on) setBattery(null);
+}
+
+function setBattery(percent) {
+  const el = $('hdrBattery');
+  if (percent == null || isNaN(percent)) { el.hidden = true; return; }
+  const pct = Math.max(0, Math.min(100, percent));
+  el.hidden = false;
+  $('hdrBatteryText').textContent = pct + '%';
+  $('hdrBatteryFill').style.width = Math.max(6, pct) + '%';
+  el.dataset.level = pct <= 15 ? 'low' : pct <= 40 ? 'mid' : 'ok';
 }
 
 // ---------- connection ----------
@@ -72,13 +83,14 @@ async function refreshDevice() {
   $('refreshDevice').disabled = true;
   try {
     const tasks = [
-      ['battery', cmdBattery(), OP.BATTERY, (b) => `${decodeBattery(b).percent}%`],
       ['name', cmdDeviceName(), OP.DEVICE_NAME, (b) => decodeDeviceName(b).name || '—'],
       ['mac', cmdMac(), OP.MAC, (b) => decodeMac(b).mac],
       ['stepGoal', cmdStepGoal(), OP.STEP_GOAL, (b) => decodeStepGoal(b).goal.toLocaleString()],
       ['deviceTime', cmdTime(), OP.TIME, (b) => fmtTime(decodeTime(b).time)],
       ['baseHr', cmdDeviceInfo(), OP.DEVICE_INFO, (b) => decodeDeviceInfo(b).baseHr || '—'],
     ];
+    // battery -> header pill
+    await runRequest(OP.BATTERY, cmdBattery(), (b) => setBattery(isRejected(b) ? null : decodeBattery(b).percent));
     // version writes two fields
     await runRequest(OP.VERSION, cmdVersion(), (b) => {
       const v = decodeVersion(b);
@@ -106,8 +118,42 @@ async function runRequest(opcode, frame, apply) {
 $('refreshDevice').addEventListener('click', refreshDevice);
 
 // ---------- live measurement ----------
+const LIVE_METRICS = {
+  hr:   { label: 'Heart rate', color: '#f87171', get: (m) => m.hr },
+  spo2: { label: 'SpO₂',       color: '#38bdf8', get: (m) => m.spo2 },
+  hrv:  { label: 'HRV',        color: '#a855f7', get: (m) => m.hrv },
+  temp: { label: 'Temp',       color: '#fbbf24', get: (m) => m.tempC },
+};
+const emptySeries = () => ({ hr: [], spo2: [], hrv: [], temp: [] });
+
 let measuring = false;
-let liveSeries = [];
+let liveMetric = 'hr';
+let liveSeries = emptySeries();
+
+function drawLive() {
+  const def = LIVE_METRICS[liveMetric];
+  lineChart($('liveChart'), liveSeries[liveMetric], { height: 220, color: def.color });
+}
+
+function buildLiveControls() {
+  const wrap = $('liveChartControls');
+  wrap.innerHTML = '';
+  for (const [key, def] of Object.entries(LIVE_METRICS)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = def.label;
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', key === liveMetric ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      liveMetric = key;
+      wrap.querySelectorAll('button').forEach((x) => x.setAttribute('aria-selected', 'false'));
+      b.setAttribute('aria-selected', 'true');
+      drawLive();
+    });
+    wrap.appendChild(b);
+  }
+}
+
 const liveNotify = (bytes) => {
   if (bytes[0] !== OP.MEASURE) return;
   const m = decodeMeasurement(bytes);
@@ -119,18 +165,23 @@ const liveNotify = (bytes) => {
   if (m.stress) $('mStress').textContent = m.stress;
   if (m.systolic || m.diastolic) $('mBp').textContent = `${m.systolic}/${m.diastolic}`;
   if (m.tempC) $('mTemp').textContent = m.tempC.toFixed(1);
-  if (m.hr) {
-    liveSeries.push({ time: Date.now(), value: m.hr });
-    if (liveSeries.length > 120) liveSeries.shift();
-    lineChart($('liveChart'), liveSeries, { height: 180, color: '#38bdf8' });
+  const t = Date.now();
+  for (const [key, def] of Object.entries(LIVE_METRICS)) {
+    const v = def.get(m);
+    if (v) {
+      const s = liveSeries[key];
+      s.push({ time: t, value: v });
+      if (s.length > 150) s.shift();
+    }
   }
+  drawLive();
 };
 
 async function startMeasuring() {
   measuring = true;
-  liveSeries = [];
+  liveSeries = emptySeries();
   $('measureBtn').textContent = 'Stop';
-  $('liveChart').hidden = false;
+  drawLive();
   ble.on('notify', liveNotify);
   try { await ble.sendRaw(cmdMeasure(1, 0, 0)); }
   catch (e) { toast(e.message, 'error'); stopMeasuring(); }
@@ -376,7 +427,7 @@ window.addEventListener('resize', () => {
   if (resizeTimer) clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     for (const [key, records] of Object.entries(histData)) renderHistBlock(key, records);
-    if (measuring && liveSeries.length) lineChart($('liveChart'), liveSeries, { height: 180, color: '#38bdf8' });
+    drawLive();
   }, 200);
 });
 
@@ -388,7 +439,9 @@ function init() {
   }
   buildHistButtons();
   buildAutoGrid();
+  buildLiveControls();
   setConnectedUI(false);
+  drawLive();
   // default "since" date = 5 days ago (band keeps ~4–5 days)
   const d = new Date(); d.setDate(d.getDate() - 5);
   $('sinceDate').value = d.toISOString().slice(0, 10);
