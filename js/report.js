@@ -2,6 +2,7 @@
 // window; the user prints or saves it as PDF via the browser).
 
 import * as insights from './insights.js';
+import * as profile from './profile.js';
 import { lineChart, barChart, hypnogram } from './charts.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -55,6 +56,25 @@ export function generateReport(histData, device = {}, goal = 10000) {
   const stepsSum = insights.stepsSummary(histData.totals || [], histData.steps || [], goal);
   const range = dataRange(histData);
   const sleepLast = (histData.sleep || []).slice().sort((a, b) => a.time - b.time).pop();
+  const prof = profile.derive(profile.loadProfile(), resting ? resting.latest : null);
+
+  let profileHtml = '';
+  if (prof.hasAny) {
+    const bits = [];
+    if (prof.age) bits.push(`Age <b>${prof.age}</b>`);
+    if (prof.sex) bits.push(`Sex <b>${esc(prof.sex)}</b>`);
+    if (prof.height) bits.push(`Height <b>${prof.height} cm</b>`);
+    if (prof.weight) bits.push(`Weight <b>${prof.weight} kg</b>`);
+    if (prof.bmi) bits.push(`BMI <b>${prof.bmi.value}</b> (${prof.bmi.category})`);
+    if (prof.bmr) bits.push(`BMR <b>${prof.bmr.toLocaleString()}</b> kcal/day`);
+    if (prof.hrMax) bits.push(`Max HR <b>${prof.hrMax}</b> bpm`);
+    let zt = '';
+    if (prof.zones) {
+      const rows = prof.zones.map((z) => `<tr><td><span class="zdot" style="background:${z.color}"></span>${z.name}</td><td>${z.min}–${z.max} bpm</td></tr>`).join('');
+      zt = `<table class="stats"><thead><tr><th>Training zone (from resting ${prof.restingUsed} bpm)</th><th>Range</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    profileHtml = `<div class="dev" style="margin-bottom:10px">${bits.map((x) => `<span>${x}</span>`).join('')}</div>${zt}`;
+  }
 
   // charts as PNG data URLs (light theme)
   const W = 760;
@@ -126,6 +146,7 @@ export function generateReport(histData, device = {}, goal = 10000) {
   table.stats th, table.stats td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); }
   table.stats th { color:var(--muted); font-weight:600; }
   .dev { font-size:12px; color:var(--muted); display:flex; flex-wrap:wrap; gap:16px; }
+  .zdot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:middle; }
   footer.rep { margin-top:26px; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
   .toolbar { position:sticky; top:0; background:#f1f5f9; border-bottom:1px solid var(--line); padding:10px; text-align:center; }
   .toolbar button { font:inherit; padding:8px 16px; border-radius:9px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; font-weight:600; }
@@ -142,6 +163,7 @@ export function generateReport(histData, device = {}, goal = 10000) {
 
     <div class="cards">${cards.join('')}</div>
 
+    ${section('Profile &amp; training zones', profileHtml)}
     ${section('Resting heart rate trend', img(imgResting, 'Resting HR trend'))}
     ${section('Heart rate', img(imgHr, 'Heart rate') + zonesHtml)}
     ${section('Steps', img(imgSteps, 'Steps trend') + (stepsSum ? `<div class="sub" style="margin-top:8px">Current streak at goal: <b>${stepsSum.streak}</b> day(s) · ${stepsSum.days} days recorded</div>` : ''))}

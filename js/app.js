@@ -13,6 +13,7 @@ import { lineChart, barChart, hypnogram, SLEEP_COLORS } from './charts.js';
 import * as store from './store.js';
 import * as insights from './insights.js';
 import * as report from './report.js';
+import * as profile from './profile.js';
 
 let deviceStepGoal = 10000;
 
@@ -268,6 +269,7 @@ async function downloadOne(key) {
     renderHistBlock(key, all);
     await refreshStoredNote();
     renderInsights();
+    renderProfileDerived();
     toast(`${def.label}: +${added} new · ${all.length} saved`, all.length ? 'ok' : '');
   } catch (e) {
     toast(`${def.label} failed: ${e.message}`, 'error');
@@ -433,6 +435,45 @@ function renderSleep(block, records) {
   }
 }
 
+// ---------- profile ----------
+function buildProfile() {
+  const p = profile.loadProfile();
+  if (p.age) $('pAge').value = p.age;
+  if (p.sex) $('pSex').value = p.sex;
+  if (p.height) $('pHeight').value = p.height;
+  if (p.weight) $('pWeight').value = p.weight;
+  $('pSave').addEventListener('click', () => {
+    profile.saveProfile({ age: $('pAge').value, sex: $('pSex').value, height: $('pHeight').value, weight: $('pWeight').value });
+    renderProfileDerived();
+    toast('Profile saved', 'ok');
+  });
+}
+
+function derivedTile(label, value, sub) {
+  return `<div class="dtile"><span class="dl">${label}</span><span class="dv">${value}</span><span class="ds">${sub || ''}</span></div>`;
+}
+
+function renderProfileDerived() {
+  const p = profile.loadProfile();
+  const resting = insights.restingHr(histData.hr || []);
+  const d = profile.derive(p, resting ? resting.latest : null);
+  const el = $('profileDerived');
+  if (!d.hasAny) {
+    el.innerHTML = '<p class="hint" style="margin-top:12px">Add your details above to personalize HR zones, recovery context and energy estimates. Nothing is sent anywhere — it stays on this device.</p>';
+    return;
+  }
+  const tiles = [];
+  if (d.hrMax) tiles.push(derivedTile('Max HR', d.hrMax, 'bpm (est.)'));
+  if (d.bmi) tiles.push(derivedTile('BMI', d.bmi.value, d.bmi.category));
+  if (d.bmr) tiles.push(derivedTile('BMR', d.bmr.toLocaleString(), 'kcal/day'));
+  let zonesHtml = '';
+  if (d.zones) {
+    const rows = d.zones.map((z) => `<tr><td><span class="zdot" style="background:${z.color}"></span>${z.name}</td><td>${z.min}–${z.max} bpm</td></tr>`).join('');
+    zonesHtml = `<div class="prof-zones"><div class="insight-h">Training zones${resting ? ` · based on resting ${d.restingUsed} bpm` : ' · add resting HR by downloading history'}</div><table class="ztable">${rows}</table></div>`;
+  }
+  el.innerHTML = `<div class="derived-grid">${tiles.join('')}</div>${zonesHtml}`;
+}
+
 // ---------- local store ----------
 async function loadStored() {
   if (!store.available()) return;
@@ -442,6 +483,7 @@ async function loadStored() {
   }
   await refreshStoredNote();
   renderInsights();
+  renderProfileDerived();
 }
 
 // ---------- insights ----------
@@ -659,6 +701,8 @@ async function init() {
   buildHistButtons();
   buildAutoGrid();
   buildLiveControls();
+  buildProfile();
+  renderProfileDerived();
   setConnectedUI(false);
   drawLive();
   // default "since" date = 5 days ago (band keeps ~4–5 days)
