@@ -213,13 +213,18 @@ export function lineChart(canvas, data, opts = {}) {
     });
   }
 
+  // Pointer events cover mouse, touch and pen (tooltips work on phones).
   const onMove = (e) => { const rect = canvas.getBoundingClientRect(); draw(e.clientX - rect.left); };
   const onLeave = () => draw(null);
-  canvas.addEventListener('mousemove', onMove);
-  canvas.addEventListener('mouseleave', onLeave);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerdown', onMove);
+  canvas.addEventListener('pointerleave', onLeave);
+  canvas.addEventListener('pointercancel', onLeave);
   canvas._hoverCleanup = () => {
-    canvas.removeEventListener('mousemove', onMove);
-    canvas.removeEventListener('mouseleave', onLeave);
+    canvas.removeEventListener('pointermove', onMove);
+    canvas.removeEventListener('pointerdown', onMove);
+    canvas.removeEventListener('pointerleave', onLeave);
+    canvas.removeEventListener('pointercancel', onLeave);
   };
 
   draw(null);

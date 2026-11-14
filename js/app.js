@@ -19,6 +19,11 @@ let deviceStepGoal = 10000;
 const $ = (id) => document.getElementById(id);
 const ble = new BleManager();
 
+// ---------- preferences (localStorage) ----------
+const PREF_KEY = 'hume-prefs';
+function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch { return {}; } }
+function savePref(k, v) { try { const p = loadPrefs(); p[k] = v; localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
+
 // ---------- helpers ----------
 let toastTimer = null;
 function toast(msg, kind = '') {
@@ -158,6 +163,7 @@ function buildLiveControls() {
     b.setAttribute('aria-selected', key === liveMetric ? 'true' : 'false');
     b.addEventListener('click', () => {
       liveMetric = key;
+      savePref('liveMetric', key);
       wrap.querySelectorAll('button').forEach((x) => x.setAttribute('aria-selected', 'false'));
       b.setAttribute('aria-selected', 'true');
       drawLive();
@@ -220,7 +226,9 @@ function sinceDateValue() {
 
 $('sinceToggle').addEventListener('change', () => {
   $('sinceDate').disabled = !ble.connected || !$('sinceToggle').checked;
+  savePref('sinceToggle', $('sinceToggle').checked);
 });
+$('sinceDate').addEventListener('change', () => savePref('sinceDate', $('sinceDate').value));
 
 const histData = {}; // typeKey -> records
 
@@ -645,6 +653,9 @@ async function init() {
     $('unsupported').hidden = false;
     $('connectBtn').disabled = true;
   }
+  const prefs = loadPrefs();
+  if (prefs.liveMetric && (LIVE_METRICS[prefs.liveMetric] || prefs.liveMetric === 'overlay')) liveMetric = prefs.liveMetric;
+
   buildHistButtons();
   buildAutoGrid();
   buildLiveControls();
@@ -653,6 +664,8 @@ async function init() {
   // default "since" date = 5 days ago (band keeps ~4–5 days)
   const d = new Date(); d.setDate(d.getDate() - 5);
   $('sinceDate').value = d.toISOString().slice(0, 10);
+  if (prefs.sinceDate) $('sinceDate').value = prefs.sinceDate;
+  if (prefs.sinceToggle) $('sinceToggle').checked = true;
   await loadStored();
 }
 init();
