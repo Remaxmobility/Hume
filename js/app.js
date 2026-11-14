@@ -671,19 +671,41 @@ $('reportBtn').addEventListener('click', () => {
 
 // ---------- PWA install + offline ----------
 let deferredPrompt = null;
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+function updateInstallBtn() { $('installBtn').hidden = isStandalone(); }
+
+function platformInstallSteps() {
+  const ua = navigator.userAgent || '';
+  const iOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const android = /Android/.test(ua);
+  if (iOS) return 'On iPhone/iPad (Safari): tap the <b>Share</b> icon, then <b>Add to Home Screen</b>.<br><span class="muted">iOS doesn\'t support Web Bluetooth, so an installed copy can view saved data but can\'t connect to the band — pair from Chrome/Edge on desktop or Chrome on Android.</span>';
+  if (android) return 'On Android (Chrome): open the <b>⋮</b> menu and tap <b>Install app</b> (or <b>Add to Home screen</b>). Then launch it from your home screen — it runs standalone and offline.';
+  return 'On desktop (Chrome or Edge): click the <b>install icon</b> in the address bar, or open the <b>⋮</b> menu and choose <b>Install Hume…</b>.';
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  $('installBtn').hidden = false;
+  updateInstallBtn();
 });
+
 $('installBtn').addEventListener('click', async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  $('installBtn').hidden = true;
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    updateInstallBtn();
+    return;
+  }
+  $('installSteps').innerHTML = platformInstallSteps();
+  $('installModal').hidden = false;
 });
-window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; toast('App installed', 'ok'); });
+$('installClose').addEventListener('click', () => { $('installModal').hidden = true; });
+$('installModal').addEventListener('click', (e) => { if (e.target.id === 'installModal') $('installModal').hidden = true; });
+window.addEventListener('appinstalled', () => { $('installModal').hidden = true; updateInstallBtn(); toast('App installed', 'ok'); });
+
+updateInstallBtn();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
