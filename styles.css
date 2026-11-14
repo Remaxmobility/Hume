@@ -251,3 +251,34 @@ table.data th { color: var(--muted); font-weight: 500; }
 .sleep-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 2px; font-size: 12px; color: var(--muted); }
 .sleep-legend .sl { display: inline-flex; align-items: center; gap: 6px; }
 .sleep-legend .sl i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+/* insights */
+.insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.insight {
+  background: linear-gradient(158deg, var(--glass-top), var(--glass-bot) 62%);
+  border: 1px solid var(--glass-border-soft); border-radius: 16px; padding: 15px;
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 6px 18px rgba(0, 0, 0, 0.2);
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+}
+.insight-wide { grid-column: 1 / -1; align-items: stretch; text-align: left; }
+.insight-h { font-size: 12px; color: var(--muted); align-self: flex-start; }
+.insight-big { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.insight-big span { font-size: 13px; color: var(--muted); margin-left: 4px; font-weight: 600; }
+.insight-sub { font-size: 12px; color: var(--muted); }
+.ins-spark { width: 100%; height: 56px; display: block; margin-top: 2px; }
+
+.ring {
+  width: 104px; height: 104px; border-radius: 50%;
+  background: conic-gradient(var(--col) calc(var(--pct) * 1%), rgba(255, 255, 255, 0.09) 0);
+  display: grid; place-items: center; margin: 2px 0;
+}
+.ring-in { width: 78px; height: 78px; border-radius: 50%; background: #0b1324; display: grid; place-items: center; box-shadow: inset 0 1px 0 var(--glass-hi); }
+.ring-val { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ring-sub { font-size: 11px; color: var(--muted); }
+
+.zones { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: rgba(0, 0, 0, 0.3); margin: 8px 0; }
+.zseg { height: 100%; }
+.zone-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
+.zone-legend .zl { display: inline-flex; align-items: center; gap: 6px; }
+.zone-legend .zl i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }

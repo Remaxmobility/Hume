@@ -11,6 +11,9 @@ import {
 import { RECORD_TYPES, downloadHistory, recordsToCsv } from './history.js';
 import { lineChart, barChart, hypnogram, SLEEP_COLORS } from './charts.js';
 import * as store from './store.js';
+import * as insights from './insights.js';
+
+let deviceStepGoal = 10000;
 
 const $ = (id) => document.getElementById(id);
 const ble = new BleManager();
@@ -86,7 +89,7 @@ async function refreshDevice() {
     const tasks = [
       ['name', cmdDeviceName(), OP.DEVICE_NAME, (b) => decodeDeviceName(b).name || '—'],
       ['mac', cmdMac(), OP.MAC, (b) => decodeMac(b).mac],
-      ['stepGoal', cmdStepGoal(), OP.STEP_GOAL, (b) => decodeStepGoal(b).goal.toLocaleString()],
+      ['stepGoal', cmdStepGoal(), OP.STEP_GOAL, (b) => { const g = decodeStepGoal(b).goal; if (g) deviceStepGoal = g; return g.toLocaleString(); }],
       ['deviceTime', cmdTime(), OP.TIME, (b) => fmtTime(decodeTime(b).time)],
       ['baseHr', cmdDeviceInfo(), OP.DEVICE_INFO, (b) => decodeDeviceInfo(b).baseHr || '—'],
     ];
@@ -101,6 +104,7 @@ async function refreshDevice() {
     for (const [elId, frame, op, fmt] of tasks) {
       await runRequest(op, frame, (b) => { $(elId).textContent = isRejected(b) ? '—' : fmt(b); });
     }
+    renderInsights();
   } finally {
     $('refreshDevice').disabled = !ble.connected;
   }
@@ -254,6 +258,7 @@ async function downloadOne(key) {
     setHistCount(key, all.length);
     renderHistBlock(key, all);
     await refreshStoredNote();
+    renderInsights();
     toast(`${def.label}: +${added} new · ${all.length} saved`, all.length ? 'ok' : '');
   } catch (e) {
     toast(`${def.label} failed: ${e.message}`, 'error');
@@ -427,6 +432,59 @@ async function loadStored() {
     if (recs.length) { histData[key] = recs; setHistCount(key, recs.length); renderHistBlock(key, recs); }
   }
   await refreshStoredNote();
+  renderInsights();
+}
+
+// ---------- insights ----------
+function renderInsights() {
+  const body = $('insightsBody');
+  const hr = histData.hr || [];
+  const resting = insights.restingHr(hr);
+  const zones = insights.hrZones(hr);
+  const recovery = insights.recoveryScore({ resting, hrvRecords: histData.hrv || [], sleepRecords: histData.sleep || [] });
+  const stepsSum = insights.stepsSummary(histData.totals || [], histData.steps || [], deviceStepGoal);
+
+  if (!resting && !zones && !recovery && !stepsSum) {
+    $('insightsSource').hidden = true;
+    body.innerHTML = '<p class="hint">Download history (or connect your band) to see resting heart rate, HR zones, a recovery score and your steps dashboard. Everything is computed from your saved data on this device.</p>';
+    return;
+  }
+  $('insightsSource').hidden = false;
+
+  const tiles = [];
+  if (resting) {
+    tiles.push(`<div class="insight"><div class="insight-h">Resting HR</div><div class="insight-big">${resting.latest}<span>bpm</span></div><div class="insight-sub">avg ${resting.avg} · ${resting.daily.length}d</div><canvas class="ins-spark" data-spark="rhr"></canvas></div>`);
+  }
+  if (recovery) {
+    const col = recovery.score >= 80 ? '#22c55e' : recovery.score >= 65 ? '#38bdf8' : recovery.score >= 50 ? '#f59e0b' : '#f87171';
+    const parts = [];
+    if (recovery.detail.restingHr) parts.push(`RHR ${recovery.detail.restingHr}`);
+    if (recovery.detail.hrv) parts.push(`HRV ${recovery.detail.hrv}`);
+    if (recovery.detail.sleepH) parts.push(`${recovery.detail.sleepH}h`);
+    tiles.push(`<div class="insight"><div class="insight-h">Recovery</div><div class="ring" style="--pct:${recovery.score};--col:${col}"><div class="ring-in"><span class="ring-val">${recovery.score}</span></div></div><div class="insight-sub">${recovery.label}${parts.length ? ' · ' + parts.join(' · ') : ''}</div></div>`);
+  }
+  if (stepsSum) {
+    const pctv = Math.min(100, Math.round(stepsSum.today.steps / stepsSum.goal * 100));
+    tiles.push(`<div class="insight"><div class="insight-h">Steps today</div><div class="ring" style="--pct:${pctv};--col:#22c55e"><div class="ring-in"><span class="ring-val">${(stepsSum.today.steps / 1000).toFixed(1)}k</span><span class="ring-sub">${pctv}%</span></div></div><div class="insight-sub">goal ${stepsSum.goal.toLocaleString()} · streak ${stepsSum.streak}d · best ${stepsSum.best.steps.toLocaleString()}</div></div>`);
+  }
+  if (zones) {
+    const bar = zones.filter((z) => z.pct > 0).map((z) => `<div class="zseg" style="width:${z.pct}%;background:${z.color}" title="${z.name} ${z.pct}%"></div>`).join('');
+    const leg = zones.map((z) => `<span class="zl"><i style="background:${z.color}"></i>${z.name} ${z.pct}%</span>`).join('');
+    tiles.push(`<div class="insight insight-wide"><div class="insight-h">HR zones</div><div class="zones">${bar}</div><div class="zone-legend">${leg}</div></div>`);
+  }
+
+  const showTrend = stepsSum && stepsSum.last7.length > 1;
+  body.innerHTML = `<div class="insight-grid">${tiles.join('')}</div>` +
+    (showTrend ? '<div class="summary-row" style="margin-top:14px"><span>Steps, recent days</span></div><canvas id="stepsTrend" class="chart"></canvas>' : '');
+
+  if (resting && resting.daily.length > 1) {
+    const c = body.querySelector('[data-spark="rhr"]');
+    if (c) requestAnimationFrame(() => lineChart(c, resting.daily, { height: 56, color: '#f87171', minimal: true }));
+  }
+  if (showTrend) {
+    const c = $('stepsTrend');
+    requestAnimationFrame(() => barChart(c, stepsSum.last7.map((d) => ({ label: d.label, value: d.value, color: '#22c55e' })), { height: 150 }));
+  }
 }
 
 async function refreshStoredNote() {
@@ -544,6 +602,26 @@ $('clearStored').addEventListener('click', async () => {
   await refreshStoredNote();
   toast('Saved history cleared');
 });
+
+// ---------- PWA install + offline ----------
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  $('installBtn').hidden = false;
+});
+$('installBtn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  $('installBtn').hidden = true;
+});
+window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; toast('App installed', 'ok'); });
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+}
 
 // ---------- init ----------
 async function init() {

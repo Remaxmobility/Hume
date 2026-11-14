@@ -59,7 +59,9 @@ export function lineChart(canvas, data, opts = {}) {
     return;
   }
 
-  const padL = 46, padR = 14, padT = hasLegend ? 28 : 12, padB = 26;
+  const minimal = !!opts.minimal;
+  const padL = minimal ? 3 : 46, padR = minimal ? 3 : 14;
+  const padT = minimal ? 3 : (hasLegend ? 28 : 12), padB = minimal ? 3 : 26;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
@@ -77,6 +79,23 @@ export function lineChart(canvas, data, opts = {}) {
 
   function drawBase() {
     ctx.clearRect(0, 0, w, h);
+
+    if (minimal) {
+      series.forEach((s) => {
+        if (!s.points.length) return;
+        const color = s.color || COLORS.line;
+        ctx.beginPath();
+        s.points.forEach((p, i) => { const x = xToPx(xval(p)), y = yToPx(p.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.lineTo(xToPx(xval(s.points[s.points.length - 1])), padT + plotH);
+        ctx.lineTo(xToPx(xval(s.points[0])), padT + plotH);
+        ctx.closePath();
+        ctx.fillStyle = COLORS.fill; ctx.fill();
+        ctx.beginPath();
+        s.points.forEach((p, i) => { const x = xToPx(xval(p)), y = yToPx(p.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+      });
+      return;
+    }
 
     // grid + y labels
     ctx.strokeStyle = COLORS.axis;
