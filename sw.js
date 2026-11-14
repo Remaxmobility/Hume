@@ -15,6 +15,7 @@ const ASSETS = [
   './js/insights.js',
   './js/report.js',
   './js/profile.js',
+  './js/overnight.js',
   './js/charts.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

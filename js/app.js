@@ -14,6 +14,7 @@ import * as store from './store.js';
 import * as insights from './insights.js';
 import * as report from './report.js';
 import * as profile from './profile.js';
+import * as overnight from './overnight.js';
 
 let deviceStepGoal = 10000;
 
@@ -51,6 +52,7 @@ function setConnectedUI(on) {
   document.querySelectorAll('.hist-types .btn, .auto-item button').forEach((b) => { b.disabled = !on; });
   $('sinceDate').disabled = !on || !$('sinceToggle').checked;
   if (!on) setBattery(null);
+  updateOvernightState();
 }
 
 function setBattery(percent) {
@@ -270,6 +272,7 @@ async function downloadOne(key) {
     await refreshStoredNote();
     renderInsights();
     renderProfileDerived();
+    renderOvernight();
     toast(`${def.label}: +${added} new · ${all.length} saved`, all.length ? 'ok' : '');
   } catch (e) {
     toast(`${def.label} failed: ${e.message}`, 'error');
@@ -474,6 +477,143 @@ function renderProfileDerived() {
   el.innerHTML = `<div class="derived-grid">${tiles.join('')}</div>${zonesHtml}`;
 }
 
+// ---------- overnight mode ----------
+function updateOvernightState() {
+  const enableBtn = $('ovEnable');
+  if (!enableBtn) return;
+  const active = !!overnight.loadPrev();
+  enableBtn.hidden = active;
+  $('ovRestore').hidden = !active;
+  enableBtn.disabled = !ble.connected;
+  $('ovRestore').disabled = !ble.connected;
+  const status = $('ovStatus');
+  if (active) {
+    const p = overnight.loadPrev();
+    const when = p && p.at ? fmtTime(new Date(p.at)) : null;
+    status.textContent = `Overnight capture is ON${when ? ` (since ${when})` : ''} — expect higher battery use and a shorter history window. Tap "Restore normal intervals" when you wake.`;
+  } else if (!ble.connected) {
+    status.textContent = 'Connect your band to enable denser overnight capture.';
+  } else {
+    status.textContent = '';
+  }
+}
+
+$('ovEnable').addEventListener('click', async () => {
+  if (!ble.connected) { toast('Connect the band first', 'error'); return; }
+  $('ovEnable').disabled = true;
+  $('ovStatus').textContent = 'Saving your current intervals…';
+  try {
+    const prev = {};
+    for (const m of overnight.OVERNIGHT_METRICS) {
+      try {
+        const b = await ble.request(OP.GET_AUTO, [], { frame: cmdGetAuto(m) });
+        prev[m] = (!isRejected(b) && decodeAuto(b).intervalMinutes) || overnight.FACTORY[m];
+      } catch { prev[m] = overnight.FACTORY[m]; }
+    }
+    overnight.savePrev(prev);
+    $('ovStatus').textContent = 'Setting 1-minute intervals…';
+    for (const m of overnight.OVERNIGHT_METRICS) {
+      await ble.request(OP.SET_AUTO, [], { frame: cmdSetAuto(m, overnight.FINE_INTERVAL, true) });
+    }
+    await readAuto();
+    updateOvernightState();
+    toast('Overnight capture on — charge up, and restore in the morning', 'ok');
+  } catch (e) {
+    toast(e.message || 'Could not set intervals', 'error');
+  } finally {
+    updateOvernightState();
+  }
+});
+
+$('ovRestore').addEventListener('click', async () => {
+  if (!ble.connected) { toast('Connect the band first', 'error'); return; }
+  const prev = overnight.loadPrev();
+  const map = (prev && prev.intervals) || overnight.FACTORY;
+  $('ovRestore').disabled = true;
+  $('ovStatus').textContent = 'Restoring your intervals…';
+  try {
+    for (const m of overnight.OVERNIGHT_METRICS) {
+      const v = map[m] || overnight.FACTORY[m];
+      await ble.request(OP.SET_AUTO, [], { frame: cmdSetAuto(m, v, true) });
+    }
+    overnight.clearPrev();
+    await readAuto();
+    updateOvernightState();
+    toast('Normal intervals restored', 'ok');
+  } catch (e) {
+    toast(e.message || 'Could not restore intervals', 'error');
+    updateOvernightState();
+  }
+});
+
+function ovTile(label, value, sub) {
+  return `<div class="dtile"><span class="dl">${label}</span><span class="dv">${value}</span><span class="ds">${sub || ''}</span></div>`;
+}
+
+function renderOvernight() {
+  const el = $('ovAnalysis');
+  if (!el) return;
+  const win = overnight.overnightWindow(histData.sleep, histData.spo2);
+  const sp = overnight.analyzeSpo2(histData.spo2 || [], win);
+  const hr = overnight.hrSummary(histData.hr || [], win);
+  if (!sp && !hr) {
+    el.innerHTML = '<p class="hint">No overnight data yet. Enable overnight capture, wear the band overnight, then sync in the morning to see your SpO₂ and heart-rate overview here.</p>';
+    return;
+  }
+  const tiles = [];
+  if (sp) {
+    tiles.push(ovTile('Lowest SpO₂', sp.lowest + '%', ''));
+    tiles.push(ovTile('Mean SpO₂', sp.mean + '%', ''));
+    tiles.push(ovTile('Readings < 90%', String(sp.below90), `of ${sp.n}`));
+    tiles.push(ovTile('Dips ≥4%', String(sp.dips), 'coarse'));
+  }
+  if (hr) tiles.push(ovTile('Overnight HR', `${hr.min}–${hr.max}`, `avg ${hr.mean} bpm`));
+  const chart = sp && sp.points.length > 1 ? '<canvas id="ovChart" class="chart"></canvas>' : '';
+  const gapNote = sp && sp.gapMin != null ? ` SpO₂ was sampled about every ${sp.gapMin} min — far too sparse to catch apnea events (seconds long).` : '';
+  const note = `<p class="hint">Window: ${win.label}.${gapNote} This is a wellness overview, <strong>not a diagnosis</strong>. A low lowest-SpO₂ or many dips here is a reason to see a doctor — not a result on its own.</p>`;
+  el.innerHTML = `<div class="derived-grid">${tiles.join('')}</div>${chart}${note}`;
+  if (sp && sp.points.length > 1) {
+    requestAnimationFrame(() => lineChart($('ovChart'), sp.points, { height: 180, color: '#38bdf8', unit: '%', yMin: Math.min(85, sp.lowest - 2), yMax: 100 }));
+  }
+}
+
+const STOPBANG_Q = [
+  ['snore', 'Snore loudly (louder than talking, or heard through a closed door)?'],
+  ['tired', 'Often tired, fatigued or sleepy during the daytime?'],
+  ['observed', 'Has anyone observed you stop breathing, gasp or choke during sleep?'],
+  ['pressure', 'High blood pressure (or being treated for it)?'],
+  ['bmi', 'BMI over 35?'],
+  ['age', 'Age over 50?'],
+  ['neck', 'Neck circumference over 40 cm (collar larger than 16")?'],
+  ['male', 'Male?'],
+];
+
+function buildStopBang() {
+  const wrap = $('stopbangForm');
+  if (!wrap) return;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('hume-stopbang')) || {}; } catch { saved = {}; }
+  const prof = profile.derive(profile.loadProfile(), null);
+  const ans = { ...saved };
+  if (ans.bmi === undefined && prof.bmi) ans.bmi = prof.bmi.value > 35;
+  if (ans.age === undefined && prof.age) ans.age = prof.age > 50;
+  if (ans.male === undefined && prof.sex) ans.male = prof.sex === 'male';
+
+  wrap.innerHTML = STOPBANG_Q.map(([k, label]) => `<label class="sb"><input type="checkbox" data-k="${k}" ${ans[k] ? 'checked' : ''} /><span>${label}</span></label>`).join('');
+  const out = $('stopbangResult');
+  function recompute(persist) {
+    const a = {};
+    wrap.querySelectorAll('input').forEach((i) => { a[i.dataset.k] = i.checked; });
+    if (persist) { try { localStorage.setItem('hume-stopbang', JSON.stringify(a)); } catch { /* ignore */ } }
+    const r = overnight.stopBang(a);
+    const col = r.risk === 'High' ? '#f87171' : r.risk === 'Intermediate' ? '#f59e0b' : '#22c55e';
+    const advice = r.score >= 3 ? ' An intermediate or high score is a good reason to discuss a sleep study with a doctor.' : ' Keep in mind this is a general screen, not a diagnosis.';
+    out.innerHTML = `<span class="sb-score" style="color:${col}">${r.score}/8 · ${r.risk} risk</span><span class="hint">${advice}</span>`;
+  }
+  wrap.querySelectorAll('input').forEach((i) => i.addEventListener('change', () => recompute(true)));
+  recompute(false);
+}
+
 // ---------- local store ----------
 async function loadStored() {
   if (!store.available()) return;
@@ -484,6 +624,7 @@ async function loadStored() {
   await refreshStoredNote();
   renderInsights();
   renderProfileDerived();
+  renderOvernight();
 }
 
 // ---------- insights ----------
@@ -725,6 +866,8 @@ async function init() {
   buildLiveControls();
   buildProfile();
   renderProfileDerived();
+  buildStopBang();
+  renderOvernight();
   setConnectedUI(false);
   drawLive();
   // default "since" date = 5 days ago (band keeps ~4–5 days)

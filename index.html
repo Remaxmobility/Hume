@@ -109,6 +109,29 @@
       <div id="profileDerived" class="profile-derived"></div>
     </section>
 
+    <!-- Overnight mode -->
+    <section class="card" id="overnightCard">
+      <div class="card-head">
+        <h2>Overnight mode</h2>
+        <span class="pill">beta · non-diagnostic</span>
+      </div>
+      <p class="hint" style="margin-top:0">
+        <strong>This is not a sleep apnea test.</strong> It records the signals your band can capture overnight at a denser interval and summarizes them — it <strong>cannot detect or rule out sleep apnea</strong> (SpO₂ is sampled minutes apart; apnea events last seconds). If you snore loudly, gasp or choke in your sleep, have witnessed breathing pauses, or daytime sleepiness, please talk to a doctor about a proper sleep study.
+      </p>
+      <div class="overnight-controls">
+        <button id="ovEnable" class="btn btn-sm">Enable overnight capture (1-min SpO₂/HR)</button>
+        <button id="ovRestore" class="btn btn-sm" hidden>Restore normal intervals</button>
+      </div>
+      <p id="ovStatus" class="hint"></p>
+      <div id="ovAnalysis"></div>
+      <details class="sb-details">
+        <summary>STOP-BANG apnea-risk screen</summary>
+        <p class="hint" style="margin-top:8px">A standard screening questionnaire for apnea <em>risk</em> (not a diagnosis). Some answers are prefilled from your profile.</p>
+        <div id="stopbangForm" class="sb-form"></div>
+        <div id="stopbangResult" class="sb-out"></div>
+      </details>
+    </section>
+
     <!-- History -->
     <section class="card" id="historyCard">
       <div class="card-head">

@@ -17,6 +17,7 @@ using [Web Bluetooth](https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_A
 - **Sleep report** — per-night hypnogram with a night picker, total sleep, stage %, efficiency, bed/wake times, and an asleep-per-night trend
 - **Profile & personalization** — enter age, sex, height and weight (stored only on your device) to compute your **max HR**, **Karvonen training zones** (from your measured resting HR), **BMI** and **BMR**, which make the raw numbers meaningful
 - **Insights** — resting heart rate (+ trend), HR zones, a composite recovery score (resting HR + HRV + sleep), and a steps dashboard (goal ring, streak, best day, 7-day trend) — all derived from your saved history
+- **Overnight mode (non-diagnostic)** — optionally raises SpO₂/HR logging to the band's finest interval for the night (**remembers your previous intervals and restores them**), then shows an overnight SpO₂/HR overview and a STOP-BANG apnea-*risk* questionnaire. **Not a sleep apnea test** — it cannot detect or rule out apnea and points you to a doctor/sleep study
 - **Printable PDF report** — a clean, light-themed health summary (snapshot cards, trends, HR zones, sleep, metric table) you print or save as PDF from the browser
 - **Interactive charts** — hover tooltips with exact values and timestamps
 - **Installable PWA** — add it to your home screen to run **standalone and offline** on your phone (see below)
@@ -86,6 +87,7 @@ js/history.js     history download state machine + record parsers + CSV
 js/store.js       local history persistence (IndexedDB), deduped and merged
 js/insights.js    derived analytics (resting HR, HR zones, recovery, steps)
 js/profile.js     personal profile + derived refs (max HR, zones, BMI, BMR)
+js/overnight.js   overnight-mode intervals (remember/restore), SpO2 overview, STOP-BANG
 js/report.js      printable PDF health report (light theme, opens to print)
 js/charts.js      zero-dependency canvas charts (interactive line, bars, hypnogram)
 js/app.js         UI controller wiring it together
