@@ -86,6 +86,29 @@
       </div>
     </section>
 
+    <!-- Profile -->
+    <section class="card" id="profileCard">
+      <div class="card-head">
+        <h2>Your profile</h2>
+        <span class="hint" style="margin:0">personalizes the numbers · saved only on this device</span>
+      </div>
+      <div class="profile-form">
+        <label>Age<input type="number" id="pAge" min="1" max="120" inputmode="numeric" placeholder="—" /></label>
+        <label>Sex
+          <select id="pSex">
+            <option value="">—</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other / prefer not to say</option>
+          </select>
+        </label>
+        <label>Height (cm)<input type="number" id="pHeight" min="50" max="260" inputmode="numeric" placeholder="—" /></label>
+        <label>Weight (kg)<input type="number" id="pWeight" min="20" max="400" inputmode="decimal" placeholder="—" /></label>
+        <button id="pSave" class="btn btn-sm btn-primary">Save</button>
+      </div>
+      <div id="profileDerived" class="profile-derived"></div>
+    </section>
+
     <!-- History -->
     <section class="card" id="historyCard">
       <div class="card-head">

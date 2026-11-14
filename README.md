@@ -15,6 +15,7 @@ using [Web Bluetooth](https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_A
 - **History download** — steps, heart rate, HRV, SpO₂, temperature, sleep and daily totals, with charts, summaries and **CSV export**
 - **Local history store** — each sync is saved to the browser (IndexedDB), so history **accumulates past the band's ~4–5 day rolling window**; nothing leaves your device
 - **Sleep report** — per-night hypnogram with a night picker, total sleep, stage %, efficiency, bed/wake times, and an asleep-per-night trend
+- **Profile & personalization** — enter age, sex, height and weight (stored only on your device) to compute your **max HR**, **Karvonen training zones** (from your measured resting HR), **BMI** and **BMR**, which make the raw numbers meaningful
 - **Insights** — resting heart rate (+ trend), HR zones, a composite recovery score (resting HR + HRV + sleep), and a steps dashboard (goal ring, streak, best day, 7-day trend) — all derived from your saved history
 - **Printable PDF report** — a clean, light-themed health summary (snapshot cards, trends, HR zones, sleep, metric table) you print or save as PDF from the browser
 - **Interactive charts** — hover tooltips with exact values and timestamps
@@ -84,6 +85,7 @@ js/ble.js         Web Bluetooth connection manager + request/response helper
 js/history.js     history download state machine + record parsers + CSV
 js/store.js       local history persistence (IndexedDB), deduped and merged
 js/insights.js    derived analytics (resting HR, HR zones, recovery, steps)
+js/profile.js     personal profile + derived refs (max HR, zones, BMI, BMR)
 js/report.js      printable PDF health report (light theme, opens to print)
 js/charts.js      zero-dependency canvas charts (interactive line, bars, hypnogram)
 js/app.js         UI controller wiring it together
