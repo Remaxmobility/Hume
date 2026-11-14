@@ -242,3 +242,12 @@ input[type="date"]:disabled { opacity: 0.4; }
 table.data { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
 table.data th, table.data td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--glass-border-soft); }
 table.data th { color: var(--muted); font-weight: 500; }
+
+.night-picker {
+  background: rgba(0, 0, 0, 0.3); color: var(--text);
+  border: 1px solid var(--glass-border); border-radius: 9px;
+  padding: 4px 8px; font-size: 13px; color-scheme: dark;
+}
+.sleep-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 2px; font-size: 12px; color: var(--muted); }
+.sleep-legend .sl { display: inline-flex; align-items: center; gap: 6px; }
+.sleep-legend .sl i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }

@@ -73,9 +73,11 @@
           <label class="range-opt"><input type="checkbox" id="sinceToggle" /> Since</label>
           <input type="date" id="sinceDate" disabled />
           <button id="downloadAll" class="btn btn-sm" disabled>Download all</button>
+          <button id="clearStored" class="btn btn-sm" hidden>Clear saved</button>
         </div>
       </div>
       <div class="hist-types" id="histButtons"></div>
+      <p id="storedNote" class="hint" hidden></p>
       <div id="histProgress" class="progress" hidden><span id="histProgressText">Working…</span></div>
       <div id="histResults"></div>
     </section>

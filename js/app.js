@@ -9,7 +9,8 @@ import {
   decodeDeviceInfo, decodeTime, decodeMeasurement, decodeAuto, isRejected, toHex,
 } from './protocol.js';
 import { RECORD_TYPES, downloadHistory, recordsToCsv } from './history.js';
-import { lineChart, hypnogram } from './charts.js';
+import { lineChart, barChart, hypnogram, SLEEP_COLORS } from './charts.js';
+import * as store from './store.js';
 
 const $ = (id) => document.getElementById(id);
 const ble = new BleManager();
@@ -119,10 +120,10 @@ $('refreshDevice').addEventListener('click', refreshDevice);
 
 // ---------- live measurement ----------
 const LIVE_METRICS = {
-  hr:   { label: 'Heart rate', color: '#f87171', get: (m) => m.hr },
-  spo2: { label: 'SpO₂',       color: '#38bdf8', get: (m) => m.spo2 },
-  hrv:  { label: 'HRV',        color: '#a855f7', get: (m) => m.hrv },
-  temp: { label: 'Temp',       color: '#fbbf24', get: (m) => m.tempC },
+  hr:   { label: 'Heart rate', unit: 'bpm', color: '#f87171', get: (m) => m.hr },
+  spo2: { label: 'SpO₂',       unit: '%',   color: '#38bdf8', get: (m) => m.spo2 },
+  hrv:  { label: 'HRV',        unit: 'ms',  color: '#a855f7', get: (m) => m.hrv },
+  temp: { label: 'Temp',       unit: '°C',  color: '#fbbf24', get: (m) => m.tempC },
 };
 const emptySeries = () => ({ hr: [], spo2: [], hrv: [], temp: [] });
 
@@ -131,17 +132,23 @@ let liveMetric = 'hr';
 let liveSeries = emptySeries();
 
 function drawLive() {
-  const def = LIVE_METRICS[liveMetric];
-  lineChart($('liveChart'), liveSeries[liveMetric], { height: 220, color: def.color });
+  if (liveMetric === 'overlay') {
+    const series = Object.entries(LIVE_METRICS).map(([k, d]) => ({ label: d.label, color: d.color, points: liveSeries[k] }));
+    lineChart($('liveChart'), series, { height: 220 });
+  } else {
+    const def = LIVE_METRICS[liveMetric];
+    lineChart($('liveChart'), liveSeries[liveMetric], { height: 220, color: def.color, unit: def.unit });
+  }
 }
 
 function buildLiveControls() {
   const wrap = $('liveChartControls');
   wrap.innerHTML = '';
-  for (const [key, def] of Object.entries(LIVE_METRICS)) {
+  const opts = [...Object.entries(LIVE_METRICS).map(([k, d]) => [k, d.label]), ['overlay', 'Overlay']];
+  for (const [key, label] of opts) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.textContent = def.label;
+    b.textContent = label;
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', key === liveMetric ? 'true' : 'false');
     b.addEventListener('click', () => {
@@ -240,11 +247,14 @@ async function downloadOne(key) {
       since: sinceDateValue(),
       onProgress: (n) => { $('histProgressText').textContent = `${def.label}: ${n} records…`; },
     });
-    histData[key] = records;
-    const btn = document.querySelector(`.hist-types .btn[data-key="${key}"] .count`);
-    if (btn) btn.textContent = `(${records.length})`;
-    renderHistBlock(key, records);
-    toast(`${def.label}: ${records.length} records`, records.length ? 'ok' : '');
+    const added = await store.putRecords(key, records);
+    const merged = await store.getRecords(key);
+    const all = merged.length ? merged : records;
+    histData[key] = all;
+    setHistCount(key, all.length);
+    renderHistBlock(key, all);
+    await refreshStoredNote();
+    toast(`${def.label}: +${added} new · ${all.length} saved`, all.length ? 'ok' : '');
   } catch (e) {
     toast(`${def.label} failed: ${e.message}`, 'error');
   } finally {
@@ -295,16 +305,11 @@ function renderHistBlock(key, records) {
     return;
   }
 
+  if (key === 'sleep') { renderSleep(block, records); return; }
+
   renderSummary(block, key, records);
 
-  if (key === 'sleep') {
-    // show the most recent sleep block as a hypnogram
-    const last = records[records.length - 1];
-    const canvas = document.createElement('canvas');
-    canvas.className = 'chart';
-    block.appendChild(canvas);
-    requestAnimationFrame(() => hypnogram(canvas, last.stages, { height: 150 }));
-  } else {
+  {
     const points = records
       .filter((r) => typeof r.value === 'number' || typeof r.steps === 'number')
       .map((r) => ({ time: r.time, value: r.value ?? r.steps }));
@@ -340,6 +345,106 @@ function renderSummary(block, key, records) {
   if (row.innerHTML) block.appendChild(row);
 }
 function def(key) { return RECORD_TYPES[key]; }
+
+function setHistCount(key, n) {
+  const el = document.querySelector(`.hist-types .btn[data-key="${key}"] .count`);
+  if (el) el.textContent = `(${n})`;
+}
+
+// ---------- sleep report ----------
+const timeHM = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const fmtDur = (min) => { const H = Math.floor(min / 60), M = min % 60; return H ? `${H}h ${M}m` : `${M}m`; };
+const pct = (c, t) => (t ? Math.round((c || 0) / t * 100) + '%' : '0%');
+
+function renderSleep(block, records) {
+  const nights = records.slice().sort((a, b) => a.time - b.time);
+
+  const pickRow = document.createElement('div');
+  pickRow.className = 'summary-row';
+  const pLabel = document.createElement('span'); pLabel.textContent = 'Night';
+  const picker = document.createElement('select'); picker.className = 'night-picker';
+  nights.forEach((n, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = `${n.time.getMonth() + 1}/${n.time.getDate()} ${timeHM(n.time)} · ${fmtDur(n.stages.length)}`;
+    picker.appendChild(o);
+  });
+  pickRow.appendChild(pLabel); pickRow.appendChild(picker);
+  block.appendChild(pickRow);
+
+  const stats = document.createElement('div'); stats.className = 'summary-row'; block.appendChild(stats);
+  const hypno = document.createElement('canvas'); hypno.className = 'chart'; block.appendChild(hypno);
+
+  const legend = document.createElement('div'); legend.className = 'sleep-legend';
+  ['deep', 'light', 'REM', 'awake'].forEach((st) => {
+    const s = document.createElement('span'); s.className = 'sl';
+    s.innerHTML = `<i style="background:${SLEEP_COLORS[st]}"></i>${st}`;
+    legend.appendChild(s);
+  });
+  block.appendChild(legend);
+
+  function showNight(i) {
+    const n = nights[i];
+    const total = n.stages.length;
+    const counts = {};
+    n.stages.forEach((s) => { counts[s.stage] = (counts[s.stage] || 0) + 1; });
+    const asleep = total - (counts.awake || 0);
+    const eff = total ? Math.round(asleep / total * 100) : 0;
+    const wake = new Date(n.time.getTime() + total * 60000);
+    stats.innerHTML =
+      `<span>Asleep <b>${fmtDur(asleep)}</b></span>` +
+      `<span>In bed <b>${fmtDur(total)}</b></span>` +
+      `<span>Efficiency <b>${eff}%</b></span>` +
+      `<span>Deep <b>${pct(counts.deep, total)}</b></span>` +
+      `<span>Light <b>${pct(counts.light, total)}</b></span>` +
+      `<span>REM <b>${pct(counts.REM, total)}</b></span>` +
+      `<span><b>${timeHM(n.time)}–${timeHM(wake)}</b></span>`;
+    requestAnimationFrame(() => hypnogram(hypno, n.stages, { height: 150 }));
+  }
+  picker.addEventListener('change', () => showNight(parseInt(picker.value, 10)));
+  picker.value = String(nights.length - 1);
+  showNight(nights.length - 1);
+
+  if (nights.length > 1) {
+    const h = document.createElement('div'); h.className = 'summary-row'; h.innerHTML = '<span>Asleep per night (hours)</span>';
+    block.appendChild(h);
+    const trend = document.createElement('canvas'); trend.className = 'chart';
+    block.appendChild(trend);
+    const bars = nights.map((n) => ({
+      label: `${n.time.getMonth() + 1}/${n.time.getDate()}`,
+      value: +(n.stages.filter((s) => s.stage !== 'awake').length / 60).toFixed(1),
+      color: '#6366f1',
+    }));
+    requestAnimationFrame(() => barChart(trend, bars, { height: 150 }));
+  }
+}
+
+// ---------- local store ----------
+async function loadStored() {
+  if (!store.available()) return;
+  for (const key of Object.keys(RECORD_TYPES)) {
+    const recs = await store.getRecords(key);
+    if (recs.length) { histData[key] = recs; setHistCount(key, recs.length); renderHistBlock(key, recs); }
+  }
+  await refreshStoredNote();
+}
+
+async function refreshStoredNote() {
+  if (!store.available()) return;
+  const s = await store.summary();
+  const total = Object.values(s).reduce((a, x) => a + x.count, 0);
+  const note = $('storedNote');
+  if (total) {
+    const times = Object.values(s).flatMap((x) => [x.from, x.to]);
+    const from = new Date(Math.min(...times)), to = new Date(Math.max(...times));
+    note.hidden = false;
+    $('clearStored').hidden = false;
+    note.textContent = `Saved locally: ${total.toLocaleString()} records · ${fmtTime(from)} → ${fmtTime(to)} — kept in this browser so history grows past the band's 4–5 day limit.`;
+  } else {
+    note.hidden = true;
+    $('clearStored').hidden = true;
+  }
+}
 
 function downloadCsv(key, records) {
   const csv = recordsToCsv(key, records);
@@ -431,8 +536,17 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
+$('clearStored').addEventListener('click', async () => {
+  await store.clearAll();
+  for (const k of Object.keys(histData)) delete histData[k];
+  $('histResults').innerHTML = '';
+  document.querySelectorAll('.hist-types .btn .count').forEach((e) => { e.textContent = ''; });
+  await refreshStoredNote();
+  toast('Saved history cleared');
+});
+
 // ---------- init ----------
-function init() {
+async function init() {
   if (!BleManager.supported) {
     $('unsupported').hidden = false;
     $('connectBtn').disabled = true;
@@ -445,5 +559,6 @@ function init() {
   // default "since" date = 5 days ago (band keeps ~4–5 days)
   const d = new Date(); d.setDate(d.getDate() - 5);
   $('sinceDate').value = d.toISOString().slice(0, 10);
+  await loadStored();
 }
 init();
