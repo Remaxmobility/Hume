@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hume — band companion</title>
+  <meta name="description" content="A Web Bluetooth companion app for the Hume Band V2 / J2208-family fitness band." />
+  <meta name="theme-color" content="#0b1120" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230ea5e9'/%3E%3Cpath d='M26 62 L40 62 L46 34 L54 72 L60 50 L66 62 L74 62' fill='none' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 100 100"><path d="M20 62 L38 62 L46 30 L55 76 L62 48 L69 62 L80 62" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <h1>Hume</h1>
+        <p class="tagline">J2208 band companion</p>
+      </div>
+    </div>
+    <div class="conn">
+      <span id="statusDot" class="dot" data-state="off"></span>
+      <span id="statusText" class="status-text">Disconnected</span>
+      <button id="connectBtn" class="btn btn-primary">Connect</button>
+      <button id="disconnectBtn" class="btn" hidden>Disconnect</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="unsupported" class="banner banner-warn" hidden>
+      <strong>Web Bluetooth isn't available here.</strong>
+      Use Chrome or Edge on desktop, or Chrome on Android. iOS/Safari don't support Web Bluetooth.
+      The page must be served over HTTPS (GitHub Pages works).
+    </div>
+
+    <!-- Device panel -->
+    <section class="card" id="deviceCard">
+      <div class="card-head">
+        <h2>Device</h2>
+        <button id="refreshDevice" class="btn btn-sm" disabled>Refresh</button>
+      </div>
+      <div class="grid stat-grid">
+        <div class="stat"><span class="stat-label">Battery</span><span class="stat-value" id="battery">—</span></div>
+        <div class="stat"><span class="stat-label">Name</span><span class="stat-value" id="name">—</span></div>
+        <div class="stat"><span class="stat-label">MAC</span><span class="stat-value mono" id="mac">—</span></div>
+        <div class="stat"><span class="stat-label">Firmware</span><span class="stat-value" id="firmware">—</span></div>
+        <div class="stat"><span class="stat-label">Build</span><span class="stat-value" id="build">—</span></div>
+        <div class="stat"><span class="stat-label">Step goal</span><span class="stat-value" id="stepGoal">—</span></div>
+        <div class="stat"><span class="stat-label">Device time</span><span class="stat-value" id="deviceTime">—</span></div>
+        <div class="stat"><span class="stat-label">Base HR</span><span class="stat-value" id="baseHr">—</span></div>
+      </div>
+    </section>
+
+    <!-- Live measurement -->
+    <section class="card" id="liveCard">
+      <div class="card-head">
+        <h2>Live measurement</h2>
+        <div class="card-actions">
+          <span class="pill" id="liveType" hidden>—</span>
+          <button id="measureBtn" class="btn btn-sm" disabled>Start</button>
+        </div>
+      </div>
+      <div class="grid live-grid">
+        <div class="metric metric-big"><span class="metric-label">Heart rate</span><span class="metric-value" id="mHr">—</span><span class="metric-unit">bpm</span></div>
+        <div class="metric"><span class="metric-label">SpO₂</span><span class="metric-value" id="mSpo2">—</span><span class="metric-unit">%</span></div>
+        <div class="metric"><span class="metric-label">HRV</span><span class="metric-value" id="mHrv">—</span><span class="metric-unit">ms</span></div>
+        <div class="metric"><span class="metric-label">Stress</span><span class="metric-value" id="mStress">—</span></div>
+        <div class="metric"><span class="metric-label">Blood pressure</span><span class="metric-value" id="mBp">—</span><span class="metric-unit">mmHg</span></div>
+        <div class="metric"><span class="metric-label">Temperature</span><span class="metric-value" id="mTemp">—</span><span class="metric-unit">°C</span></div>
+      </div>
+      <canvas id="liveChart" class="chart" aria-label="Live heart rate chart" hidden></canvas>
+      <p class="hint">Type 2 (heart) streams at ~2 Hz. SpO₂/HRV/temp warm up over ~30 s before reporting a full panel.</p>
+    </section>
+
+    <!-- History -->
+    <section class="card" id="historyCard">
+      <div class="card-head">
+        <h2>History</h2>
+        <div class="card-actions">
+          <label class="range-opt"><input type="checkbox" id="sinceToggle" /> Since</label>
+          <input type="date" id="sinceDate" disabled />
+          <button id="downloadAll" class="btn btn-sm" disabled>Download all</button>
+        </div>
+      </div>
+      <div class="hist-types" id="histButtons"></div>
+      <div id="histProgress" class="progress" hidden><span id="histProgressText">Working…</span></div>
+      <div id="histResults"></div>
+    </section>
+
+    <!-- Auto-logging -->
+    <section class="card" id="autoCard">
+      <div class="card-head">
+        <h2>Auto-logging intervals</h2>
+        <button id="readAuto" class="btn btn-sm" disabled>Read</button>
+      </div>
+      <p class="hint">How often the band records each metric to its own history, with nothing connected. Lower = finer resolution, more battery use.</p>
+      <div class="auto-grid" id="autoGrid"></div>
+    </section>
+
+    <!-- Console -->
+    <section class="card" id="logCard">
+      <div class="card-head">
+        <h2>BLE log</h2>
+        <div class="card-actions">
+          <label class="range-opt"><input type="checkbox" id="logToggle" /> Show</label>
+          <button id="clearLog" class="btn btn-sm">Clear</button>
+        </div>
+      </div>
+      <pre id="logOut" class="log" hidden></pre>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Unofficial companion for the J2208-family band. Not affiliated with any brand. Protocol: <a href="https://github.com/brendangooden/j2208-band-tools/blob/main/PROTOCOL.md" target="_blank" rel="noopener">j2208-band-tools</a>.</p>
+  </footer>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
