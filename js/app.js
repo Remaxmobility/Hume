@@ -12,6 +12,7 @@ import { RECORD_TYPES, downloadHistory, recordsToCsv } from './history.js';
 import { lineChart, barChart, hypnogram, SLEEP_COLORS } from './charts.js';
 import * as store from './store.js';
 import * as insights from './insights.js';
+import * as report from './report.js';
 
 let deviceStepGoal = 10000;
 
@@ -446,10 +447,12 @@ function renderInsights() {
 
   if (!resting && !zones && !recovery && !stepsSum) {
     $('insightsSource').hidden = true;
+    $('reportBtn').hidden = true;
     body.innerHTML = '<p class="hint">Download history (or connect your band) to see resting heart rate, HR zones, a recovery score and your steps dashboard. Everything is computed from your saved data on this device.</p>';
     return;
   }
   $('insightsSource').hidden = false;
+  $('reportBtn').hidden = false;
 
   const tiles = [];
   if (resting) {
@@ -601,6 +604,19 @@ $('clearStored').addEventListener('click', async () => {
   document.querySelectorAll('.hist-types .btn .count').forEach((e) => { e.textContent = ''; });
   await refreshStoredNote();
   toast('Saved history cleared');
+});
+
+// ---------- PDF health report ----------
+$('reportBtn').addEventListener('click', () => {
+  const device = {
+    name: $('name').textContent,
+    mac: $('mac').textContent,
+    firmware: $('firmware').textContent,
+    build: $('build').textContent,
+    stepGoal: $('stepGoal').textContent,
+  };
+  const ok = report.generateReport(histData, device, deviceStepGoal);
+  if (!ok) toast('Allow pop-ups to open the report', 'error');
 });
 
 // ---------- PWA install + offline ----------

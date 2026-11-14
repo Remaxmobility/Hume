@@ -23,6 +23,14 @@ const COLORS = {
   line: '#38bdf8',
   fill: 'rgba(56,189,248,0.12)',
 };
+// light palette for the printable report (dark text on white)
+const LIGHT = {
+  axis: 'rgba(15,23,42,0.14)',
+  text: 'rgba(51,65,85,0.95)',
+  line: '#0ea5e9',
+  fill: 'rgba(14,165,233,0.12)',
+};
+const palette = (opts) => (opts && opts.light ? LIGHT : COLORS);
 
 function fmtDay(d) {
   const p = (n) => String(n).padStart(2, '0');
@@ -43,16 +51,17 @@ export function lineChart(canvas, data, opts = {}) {
 
   const series = (Array.isArray(data) && data[0] && Array.isArray(data[0].points))
     ? data
-    : [{ label: opts.label || '', color: opts.color || COLORS.line, points: data || [] }];
+    : [{ label: opts.label || '', color: opts.color || C.line, points: data || [] }];
   const multi = series.length > 1;
   const hasLegend = multi && series.some((s) => s.label);
   const all = series.flatMap((s) => s.points);
+  const C = palette(opts);
 
   if (canvas._hoverCleanup) { canvas._hoverCleanup(); canvas._hoverCleanup = null; }
 
   if (!all.length) {
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = COLORS.text;
+    ctx.fillStyle = C.text;
     ctx.font = '13px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('No data', w / 2, h / 2);
@@ -83,13 +92,13 @@ export function lineChart(canvas, data, opts = {}) {
     if (minimal) {
       series.forEach((s) => {
         if (!s.points.length) return;
-        const color = s.color || COLORS.line;
+        const color = s.color || C.line;
         ctx.beginPath();
         s.points.forEach((p, i) => { const x = xToPx(xval(p)), y = yToPx(p.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
         ctx.lineTo(xToPx(xval(s.points[s.points.length - 1])), padT + plotH);
         ctx.lineTo(xToPx(xval(s.points[0])), padT + plotH);
         ctx.closePath();
-        ctx.fillStyle = COLORS.fill; ctx.fill();
+        ctx.fillStyle = C.fill; ctx.fill();
         ctx.beginPath();
         s.points.forEach((p, i) => { const x = xToPx(xval(p)), y = yToPx(p.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
         ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
@@ -98,8 +107,8 @@ export function lineChart(canvas, data, opts = {}) {
     }
 
     // grid + y labels
-    ctx.strokeStyle = COLORS.axis;
-    ctx.fillStyle = COLORS.text;
+    ctx.strokeStyle = C.axis;
+    ctx.fillStyle = C.text;
     ctx.font = '11px system-ui, sans-serif';
     ctx.lineWidth = 1;
     ctx.textAlign = 'right';
@@ -121,14 +130,14 @@ export function lineChart(canvas, data, opts = {}) {
 
     series.forEach((s) => {
       if (!s.points.length) return;
-      const color = s.color || COLORS.line;
+      const color = s.color || C.line;
       if (!multi && opts.area !== false) {
         ctx.beginPath();
         s.points.forEach((p, i) => { const x = xToPx(xval(p)), y = yToPx(p.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
         ctx.lineTo(xToPx(xval(s.points[s.points.length - 1])), padT + plotH);
         ctx.lineTo(xToPx(xval(s.points[0])), padT + plotH);
         ctx.closePath();
-        ctx.fillStyle = COLORS.fill; ctx.fill();
+        ctx.fillStyle = C.fill; ctx.fill();
       }
       ctx.beginPath();
       s.points.forEach((p, i) => { const x = xToPx(xval(p)), y = yToPx(p.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
@@ -140,9 +149,9 @@ export function lineChart(canvas, data, opts = {}) {
       let lx = padL;
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = '11px system-ui, sans-serif';
       series.forEach((s) => {
-        ctx.strokeStyle = s.color || COLORS.line; ctx.lineWidth = 2.5;
+        ctx.strokeStyle = s.color || C.line; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.moveTo(lx, 14); ctx.lineTo(lx + 16, 14); ctx.stroke();
-        ctx.fillStyle = COLORS.text;
+        ctx.fillStyle = C.text;
         ctx.fillText(s.label, lx + 21, 15);
         lx += 32 + ctx.measureText(s.label).width;
       });
@@ -172,11 +181,11 @@ export function lineChart(canvas, data, opts = {}) {
       if (!p) return;
       refTime = p.time;
       const px = xToPx(xval(p)), py = yToPx(p.value);
-      ctx.fillStyle = s.color || COLORS.line;
+      ctx.fillStyle = s.color || C.line;
       ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.stroke();
       const val = Number.isInteger(p.value) ? p.value : p.value.toFixed(1);
-      rows.push({ color: s.color || COLORS.line, text: multi ? `${s.label} ${val}` : `${val}${opts.unit ? ' ' + opts.unit : ''}` });
+      rows.push({ color: s.color || C.line, text: multi ? `${s.label} ${val}` : `${val}${opts.unit ? ' ' + opts.unit : ''}` });
     });
     if (!rows.length) return;
 
@@ -194,7 +203,7 @@ export function lineChart(canvas, data, opts = {}) {
     roundRect(ctx, bx, by, tw, th, 8); ctx.fill(); ctx.stroke();
 
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-    ctx.fillStyle = COLORS.text;
+    ctx.fillStyle = C.text;
     ctx.fillText(timeStr, bx + 8, by + 13);
     rows.forEach((r, i) => {
       const ly = by + 13 + (i + 1) * 15;
@@ -230,13 +239,14 @@ function roundRect(ctx, x, y, w, h, r) {
 export function barChart(canvas, bars, opts = {}) {
   const height = opts.height || 160;
   const { ctx, w, h } = setupCanvas(canvas, height);
+  const C = palette(opts);
   ctx.clearRect(0, 0, w, h);
   const padL = 40, padR = 12, padT = 12, padB = 30;
   const plotW = w - padL - padR, plotH = h - padT - padB;
-  if (!bars.length) { ctx.fillStyle = COLORS.text; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No data', w / 2, h / 2); return; }
+  if (!bars.length) { ctx.fillStyle = C.text; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No data', w / 2, h / 2); return; }
 
   const maxV = Math.max(...bars.map((b) => b.value), opts.yMax || 0) || 1;
-  ctx.strokeStyle = COLORS.axis; ctx.fillStyle = COLORS.text; ctx.font = '11px system-ui'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.strokeStyle = C.axis; ctx.fillStyle = C.text; ctx.font = '11px system-ui'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   for (let i = 0; i <= 3; i++) {
     const v = (i / 3) * maxV, py = padT + plotH - (v / maxV) * plotH;
     ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(w - padR, py); ctx.stroke();
@@ -246,9 +256,9 @@ export function barChart(canvas, bars, opts = {}) {
   bars.forEach((b, i) => {
     const bh = (b.value / maxV) * plotH;
     const bx = padL + i * bw + bw * 0.18, by = padT + plotH - bh, barW = bw * 0.64;
-    ctx.fillStyle = b.color || COLORS.line;
+    ctx.fillStyle = b.color || C.line;
     roundRect(ctx, bx, by, barW, Math.max(bh, 1), 4); ctx.fill();
-    ctx.fillStyle = COLORS.text; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = C.text; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(b.label, bx + barW / 2, h - 10);
   });
 }
@@ -261,18 +271,19 @@ export { SLEEP_COLORS };
 export function hypnogram(canvas, stages, opts = {}) {
   const height = opts.height || 140;
   const { ctx, w, h } = setupCanvas(canvas, height);
+  const C = palette(opts);
   ctx.clearRect(0, 0, w, h);
   const padL = 50, padR = 12, padT = 10, padB = 20;
   const plotW = w - padL - padR, plotH = h - padT - padB;
 
-  if (!stages || !stages.length) { ctx.fillStyle = COLORS.text; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No sleep data', w / 2, h / 2); return; }
+  if (!stages || !stages.length) { ctx.fillStyle = C.text; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No sleep data', w / 2, h / 2); return; }
 
   const levels = ['awake', 'REM', 'light', 'deep'];
-  ctx.font = '11px system-ui'; ctx.fillStyle = COLORS.text; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.font = '11px system-ui'; ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   levels.forEach((lvl) => {
     const py = padT + (SLEEP_LEVEL[lvl] / 3) * plotH;
     ctx.fillText(lvl, padL - 6, py);
-    ctx.strokeStyle = COLORS.axis; ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(w - padR, py); ctx.stroke();
+    ctx.strokeStyle = C.axis; ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(w - padR, py); ctx.stroke();
   });
 
   const barW = plotW / stages.length;
@@ -283,6 +294,6 @@ export function hypnogram(canvas, stages, opts = {}) {
     ctx.fillRect(padL + i * barW, py - 6, Math.max(barW, 1), 12);
   });
 
-  ctx.fillStyle = COLORS.text; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = C.text; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(`${stages.length} min`, padL, h - 6);
 }

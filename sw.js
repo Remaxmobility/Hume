@@ -13,6 +13,7 @@ const ASSETS = [
   './js/store.js',
   './js/charts.js',
   './js/insights.js',
+  './js/report.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
