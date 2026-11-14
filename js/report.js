@@ -3,6 +3,7 @@
 
 import * as insights from './insights.js';
 import * as profile from './profile.js';
+import * as overnight from './overnight.js';
 import { lineChart, barChart, hypnogram } from './charts.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -74,6 +75,47 @@ export function generateReport(histData, device = {}, goal = 10000) {
       zt = `<table class="stats"><thead><tr><th>Training zone (from resting ${prof.restingUsed} bpm)</th><th>Range</th></tr></thead><tbody>${rows}</tbody></table>`;
     }
     profileHtml = `<div class="dev" style="margin-bottom:10px">${bits.map((x) => `<span>${x}</span>`).join('')}</div>${zt}`;
+  }
+
+  // Overnight overview (non-diagnostic)
+  const ovWin = overnight.overnightWindow(histData.sleep, histData.spo2);
+  const ovSp = overnight.analyzeSpo2(histData.spo2 || [], ovWin);
+  const ovHr = overnight.hrSummary(histData.hr || [], ovWin);
+  const imgOvSpo2 = ovSp && ovSp.points.length > 1
+    ? chartImg(760, 170, (c) => lineChart(c, ovSp.points, { height: 170, color: '#0284c7', light: true, unit: '%', yMin: Math.min(85, ovSp.lowest - 2), yMax: 100 }))
+    : '';
+  let overnightHtml = '';
+  if (ovSp || ovHr) {
+    const bits = [];
+    if (ovSp) {
+      bits.push(`Lowest SpO₂ <b>${ovSp.lowest}%</b>`);
+      bits.push(`Mean SpO₂ <b>${ovSp.mean}%</b>`);
+      bits.push(`Readings &lt;90% <b>${ovSp.below90}</b>/${ovSp.n}`);
+      bits.push(`Dips ≥4% <b>${ovSp.dips}</b>`);
+    }
+    if (ovHr) bits.push(`Overnight HR <b>${ovHr.min}–${ovHr.max}</b> (avg ${ovHr.mean})`);
+    const gap = ovSp && ovSp.gapMin != null ? ` SpO₂ sampled about every ${ovSp.gapMin} min — far too sparse to detect apnea (events last seconds).` : '';
+    overnightHtml = `<div class="dev" style="margin-bottom:8px">${bits.map((x) => `<span>${x}</span>`).join('')}</div>${imgOvSpo2 ? `<img src="${imgOvSpo2}" alt="Overnight SpO2" />` : ''}<p class="sub" style="margin-top:8px">Window: ${esc(ovWin.label)}.${gap} Wellness overview only — <b>not a diagnosis and not a sleep apnea test</b>.</p>`;
+  }
+
+  // STOP-BANG apnea risk
+  let sbHtml = '';
+  {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('hume-stopbang')) || {}; } catch { saved = {}; }
+    const a = { ...saved };
+    if (a.bmi === undefined && prof.bmi) a.bmi = prof.bmi.value > 35;
+    if (a.age === undefined && prof.age) a.age = prof.age > 50;
+    if (a.male === undefined && prof.sex) a.male = prof.sex === 'male';
+    if (overnight.STOPBANG_KEYS.some((k) => a[k] !== undefined)) {
+      const labels = { snore: 'Loud snoring', tired: 'Daytime tiredness', observed: 'Observed breathing pauses', pressure: 'High blood pressure', bmi: 'BMI over 35', age: 'Age over 50', neck: 'Large neck circumference', male: 'Male' };
+      const positives = overnight.STOPBANG_KEYS.filter((k) => a[k]).map((k) => labels[k]);
+      const r = overnight.stopBang(a);
+      const col = r.risk === 'High' ? '#dc2626' : r.risk === 'Intermediate' ? '#d97706' : '#16a34a';
+      sbHtml = `<p><span style="font-weight:800;color:${col};font-size:16px">${r.score}/8 · ${r.risk} risk</span></p>`
+        + (positives.length ? `<p class="sub">Positive factors: ${positives.map(esc).join(', ')}.</p>` : '<p class="sub">No positive factors recorded.</p>')
+        + `<p class="sub">STOP-BANG is a screening questionnaire, not a diagnosis.${r.score >= 3 ? ' An intermediate or high score is a reason to discuss a sleep study with a doctor.' : ''}</p>`;
+    }
   }
 
   // charts as PNG data URLs (light theme)
@@ -168,6 +210,8 @@ export function generateReport(histData, device = {}, goal = 10000) {
     ${section('Heart rate', img(imgHr, 'Heart rate') + zonesHtml)}
     ${section('Steps', img(imgSteps, 'Steps trend') + (stepsSum ? `<div class="sub" style="margin-top:8px">Current streak at goal: <b>${stepsSum.streak}</b> day(s) · ${stepsSum.days} days recorded</div>` : ''))}
     ${section('Sleep (last night)', img(imgSleep, 'Hypnogram'))}
+    ${section('Overnight overview (non-diagnostic)', overnightHtml)}
+    ${section('Apnea risk — STOP-BANG', sbHtml)}
     ${section('Metric summary', statsTable)}
 
     <section>
