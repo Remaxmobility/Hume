@@ -15,9 +15,18 @@ using [Web Bluetooth](https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_A
 - **History download** — steps, heart rate, HRV, SpO₂, temperature, sleep and daily totals, with charts, summaries and **CSV export**
 - **Local history store** — each sync is saved to the browser (IndexedDB), so history **accumulates past the band's ~4–5 day rolling window**; nothing leaves your device
 - **Sleep report** — per-night hypnogram with a night picker, total sleep, stage %, efficiency, bed/wake times, and an asleep-per-night trend
+- **Insights** — resting heart rate (+ trend), HR zones, a composite recovery score (resting HR + HRV + sleep), and a steps dashboard (goal ring, streak, best day, 7-day trend) — all derived from your saved history
 - **Interactive charts** — hover tooltips with exact values and timestamps
+- **Installable PWA** — add it to your home screen to run **standalone and offline** on your phone (see below)
 - **Auto-logging intervals** — read and change how often the band records each metric to its own memory
 - **BLE log** — raw TX/RX hex console for debugging
+
+## Install on your phone
+
+The app is a PWA, so you can install it like a native app and launch it from your home screen.
+
+- **Android (Chrome):** open the site, then tap the **Install app** button in the header (or Chrome's ⋮ → *Install app* / *Add to Home screen*). It runs standalone and works offline; your saved history stays on the device.
+- **iPhone (Safari):** *Share* → *Add to Home Screen*. Note that **iOS has no Web Bluetooth**, so an installed copy can view your saved history but can't connect to the band — pairing needs Chrome/Edge on desktop or Chrome on Android.
 
 ## Running it
 
@@ -73,8 +82,11 @@ js/protocol.js    framing, opcodes, encoders/decoders (BCD, checksum, parsers)
 js/ble.js         Web Bluetooth connection manager + request/response helper
 js/history.js     history download state machine + record parsers + CSV
 js/store.js       local history persistence (IndexedDB), deduped and merged
+js/insights.js    derived analytics (resting HR, HR zones, recovery, steps)
 js/charts.js      zero-dependency canvas charts (interactive line, bars, hypnogram)
 js/app.js         UI controller wiring it together
+sw.js             service worker (offline app shell)
+manifest.webmanifest, icons/   PWA install metadata + icons
 ```
 
 No dependencies, no build step — plain ES modules.
