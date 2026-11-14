@@ -30,6 +30,10 @@ html, body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  /* Prevent pull-to-refresh reload (which would drop the BLE connection) and
+     horizontal scroll-chaining, while keeping normal vertical scrolling. */
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
 }
 
 /* vivid, slowly drifting colour field so the frosted glass has something to refract */
