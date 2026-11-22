@@ -55,23 +55,41 @@ export class BleManager extends EventTarget {
       this._emit('disconnect', { device: this.device?.name });
     });
 
-    this.server = await this.device.gatt.connect();
-    this.service = await this.server.getPrimaryService(GATT.SERVICE);
-    this.writeChar = await this.service.getCharacteristic(GATT.WRITE);
-    this.notifyChar = await this.service.getCharacteristic(GATT.NOTIFY);
-
-    await this.notifyChar.startNotifications();
-    this.notifyChar.addEventListener('characteristicvaluechanged', (e) => {
-      const dv = e.target.value;
-      const bytes = new Uint8Array(dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength));
-      this._emit('log', { dir: 'rx', bytes });
-      this._emit('notify', bytes);
-    });
+    // GATT connect + service discovery can fail transiently on Android; retry.
+    await this._establish(4);
 
     this.connected = true;
     this._emit('connect', { device: this.device.name });
     return { name: this.device.name };
   }
+
+  async _establish(attempts = 4) {
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        if (this.device.gatt.connected) { try { this.device.gatt.disconnect(); } catch (_) {} await this._sleep(200); }
+        this.server = await this.device.gatt.connect();
+        this.service = await this.server.getPrimaryService(GATT.SERVICE);
+        this.writeChar = await this.service.getCharacteristic(GATT.WRITE);
+        this.notifyChar = await this.service.getCharacteristic(GATT.NOTIFY);
+        await this.notifyChar.startNotifications();
+        this.notifyChar.addEventListener('characteristicvaluechanged', (e) => {
+          const dv = e.target.value;
+          const bytes = new Uint8Array(dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength));
+          this._emit('log', { dir: 'rx', bytes });
+          this._emit('notify', bytes);
+        });
+        return;
+      } catch (e) {
+        lastErr = e;
+        try { if (this.device.gatt.connected) this.device.gatt.disconnect(); } catch (_) {}
+        if (i < attempts - 1) await this._sleep(300 * (i + 1));
+      }
+    }
+    throw lastErr || new Error('Could not connect to the band.');
+  }
+
+  _sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
   async disconnect() {
     if (this.device?.gatt?.connected) this.device.gatt.disconnect();
