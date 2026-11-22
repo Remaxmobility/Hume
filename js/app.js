@@ -157,6 +157,8 @@ const emptySeries = () => ({ hr: [], spo2: [], hrv: [], temp: [] });
 let measuring = false;
 let liveMetric = 'hr';
 let liveSeries = emptySeries();
+let measureKick = null;
+let gotMeasurement = false;
 
 function drawLive() {
   if (liveMetric === 'overlay') {
@@ -191,6 +193,8 @@ function buildLiveControls() {
 
 const liveNotify = (bytes) => {
   if (bytes[0] !== OP.MEASURE) return;
+  gotMeasurement = true;
+  if (measureKick) { clearTimeout(measureKick); measureKick = null; }
   const m = decodeMeasurement(bytes);
   $('liveType').hidden = false;
   $('liveType').textContent = m.typeName;
@@ -212,20 +216,44 @@ const liveNotify = (bytes) => {
   drawLive();
 };
 
+const LIVE_IDS = ['mHr', 'mSpo2', 'mHrv', 'mStress', 'mBp', 'mTemp'];
+
 async function startMeasuring() {
   measuring = true;
+  gotMeasurement = false;
   liveSeries = emptySeries();
   $('measureBtn').textContent = 'Stop';
+  // Immediate active state so it responds the instant you tap Start.
+  $('liveType').hidden = false;
+  $('liveType').textContent = 'Measuring…';
+  $('liveCard').classList.add('measuring');
+  LIVE_IDS.forEach((id) => { if ($(id).textContent === '—') $(id).textContent = '…'; });
   drawLive();
   ble.on('notify', liveNotify);
-  try { await ble.sendRaw(cmdMeasure(1, 0, 0)); }
-  catch (e) { toast(e.message, 'error'); stopMeasuring(); }
+  try {
+    // open all channels (HR + SpO2 + PPG/PPI) for the fullest, fastest stream
+    await ble.sendRaw(cmdMeasure(1, 1, 1));
+  } catch (e) { toast(e.message, 'error'); stopMeasuring(); return; }
+  // if nothing arrives quickly, re-send the start command a couple of times
+  let kicks = 0;
+  const kick = () => {
+    if (!measuring || gotMeasurement) return;
+    if (kicks++ >= 3) return;
+    ble.sendRaw(cmdMeasure(1, 1, 1)).catch(() => {});
+    measureKick = setTimeout(kick, 1500);
+  };
+  if (measureKick) clearTimeout(measureKick);
+  measureKick = setTimeout(kick, 1500);
 }
 
 async function stopMeasuring() {
   if (!measuring) return;
   measuring = false;
+  if (measureKick) { clearTimeout(measureKick); measureKick = null; }
   $('measureBtn').textContent = 'Start';
+  $('liveCard').classList.remove('measuring');
+  $('liveType').hidden = true;
+  LIVE_IDS.forEach((id) => { if ($(id).textContent === '…') $(id).textContent = '—'; });
   ble.off('notify', liveNotify);
   try { if (ble.connected) await ble.sendRaw(cmdStopMeasure()); } catch (_) {}
 }
