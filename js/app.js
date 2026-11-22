@@ -76,7 +76,12 @@ $('connectBtn').addEventListener('click', async () => {
     await refreshDevice();
   } catch (e) {
     setConnectedUI(false);
-    if (e.name !== 'NotFoundError') toast(e.message || 'Connection failed', 'error');
+    if (e.name === 'NotFoundError') return; // user dismissed the chooser
+    const msg = /gatt|connect|network|unknown/i.test(e.message || '')
+      ? "Couldn't connect — make sure the band is awake, close by, and not connected to another app, then try again."
+      : (e.message || 'Connection failed');
+    toast(msg, 'error');
+    console.warn('connect failed:', e);
   }
 });
 
