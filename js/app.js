@@ -231,19 +231,16 @@ async function startMeasuring() {
   drawLive();
   ble.on('notify', liveNotify);
   try {
-    // open all channels (HR + SpO2 + PPG/PPI) for the fullest, fastest stream
-    await ble.sendRaw(cmdMeasure(1, 1, 1));
+    // known-good live heart-rate stream (type 2). Flags off so the band keeps
+    // pushing HR; re-sending start would reset the sensor's lock-on.
+    await ble.sendRaw(cmdMeasure(1, 0, 0));
   } catch (e) { toast(e.message, 'error'); stopMeasuring(); return; }
-  // if nothing arrives quickly, re-send the start command a couple of times
-  let kicks = 0;
-  const kick = () => {
-    if (!measuring || gotMeasurement) return;
-    if (kicks++ >= 3) return;
-    ble.sendRaw(cmdMeasure(1, 1, 1)).catch(() => {});
-    measureKick = setTimeout(kick, 1500);
-  };
+  // single gentle retry only if nothing has arrived after the sensor should
+  // have locked on — never repeatedly (that resets the measurement).
   if (measureKick) clearTimeout(measureKick);
-  measureKick = setTimeout(kick, 1500);
+  measureKick = setTimeout(() => {
+    if (measuring && !gotMeasurement) ble.sendRaw(cmdMeasure(1, 0, 0)).catch(() => {});
+  }, 6000);
 }
 
 async function stopMeasuring() {
