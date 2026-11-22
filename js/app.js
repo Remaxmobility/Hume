@@ -77,10 +77,19 @@ $('connectBtn').addEventListener('click', async () => {
   } catch (e) {
     setConnectedUI(false);
     if (e.name === 'NotFoundError') return; // user dismissed the chooser
+    const raw = `${e.name || 'Error'}: ${e.message || ''}`;
     const msg = /gatt|connect|network|unknown/i.test(e.message || '')
-      ? "Couldn't connect — make sure the band is awake, close by, and not connected to another app, then try again."
+      ? "Couldn't connect — make sure the band is awake, close by, charged, and not connected to another app."
       : (e.message || 'Connection failed');
-    toast(msg, 'error');
+    toast(`${msg}  [${e.name || 'Error'}]`, 'error');
+    // Surface the exact error in the BLE log for diagnosis.
+    try {
+      logLines.push(`<span class="tx">ERR</span> connect — ${raw}`);
+      $('logToggle').checked = true;
+      $('logOut').hidden = false;
+      $('logOut').innerHTML = logLines.join('\n');
+      $('logOut').scrollTop = $('logOut').scrollHeight;
+    } catch (_) { /* ignore */ }
     console.warn('connect failed:', e);
   }
 });
