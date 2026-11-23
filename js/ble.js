@@ -63,12 +63,17 @@ export class BleManager extends EventTarget {
     return { name: this.device.name };
   }
 
-  async _establish(attempts = 4) {
+  async _establish(attempts = 6) {
     let lastErr;
     for (let i = 0; i < attempts; i++) {
       try {
-        if (this.device.gatt.connected) { try { this.device.gatt.disconnect(); } catch (_) {} await this._sleep(200); }
+        if (this.device.gatt.connected) { try { this.device.gatt.disconnect(); } catch (_) {} await this._sleep(300); }
         this.server = await this.device.gatt.connect();
+        // Let the link settle before service discovery — many Android stacks
+        // throw "GATT Server is disconnected. Cannot retrieve services" if we
+        // discover immediately after connect.
+        await this._sleep(400);
+        if (!this.device.gatt.connected) throw new Error('GATT dropped before service discovery');
         this.service = await this.server.getPrimaryService(GATT.SERVICE);
         this.writeChar = await this.service.getCharacteristic(GATT.WRITE);
         this.notifyChar = await this.service.getCharacteristic(GATT.NOTIFY);
@@ -83,7 +88,7 @@ export class BleManager extends EventTarget {
       } catch (e) {
         lastErr = e;
         try { if (this.device.gatt.connected) this.device.gatt.disconnect(); } catch (_) {}
-        if (i < attempts - 1) await this._sleep(300 * (i + 1));
+        if (i < attempts - 1) await this._sleep(Math.min(2000, 400 * (i + 1)));
       }
     }
     throw lastErr || new Error('Could not connect to the band.');
